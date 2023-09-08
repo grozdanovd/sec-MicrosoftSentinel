@@ -1,0 +1,207 @@
+### List of KQL queries for [Microsoft Security Operations Analyst(SC-200)](https://learn.microsoft.com/training/courses/sc-200t00?WT.mc_id=ES-MVP-5002880)
+
+They are part of the Module 7 labs, but there are few used as samples
+
+##### Note: Use the https://aka.ms/lademo for testing the queries
+ 
+search "err" | limit 10
+
+search in (SecurityEvent,SecurityAlert,A*) "err" | limit 10
+
+
+SecurityEvent
+| where TimeGenerated > ago(1h)
+
+SecurityEvent
+| where TimeGenerated > ago(1h) and EventID == "4624"
+
+SecurityEvent
+| where TimeGenerated > ago(1h)
+| where EventID == 4624
+| where AccountType =~ "user" // =~ or == is the same
+
+
+SecurityEvent 
+| where TimeGenerated > ago(1h) and EventID in (4624, 4625)
+
+
+ let timeOffset = 7d;
+ let discardEventId = 4688;
+ SecurityEvent
+ | where TimeGenerated > ago(timeOffset*2) and TimeGenerated < ago(timeOffset)
+ | where EventID != discardEventId
+
+
+let suspiciousAccounts = datatable(account: string) [
+    @"\administrator", 
+    @"NT AUTHORITY\SYSTEM"
+];
+SecurityEvent | where Account in (suspiciousAccounts)
+
+let LowActivityAccounts =
+    SecurityEvent 
+    | summarize cnt = count() by Account 
+    | where cnt < 1000;
+LowActivityAccounts | where Account contains "sql"
+
+
+SecurityEvent
+| where ProcessName != "" and Process != ""
+| extend StartDir =  substring(ProcessName,0, string_size(ProcessName)-string_size(Process))
+
+
+SecurityEvent
+| where ProcessName != "" and Process != ""
+| extend StartDir =  substring(ProcessName,0, string_size(ProcessName)-string_size(Process))
+| order by StartDir desc, Process asc
+
+SecurityEvent
+| where TimeGenerated > ago(1h)
+| project Computer, Account
+
+SecurityEvent
+| where ProcessName != "" and Process != ""
+| extend StartDir =  substring(ProcessName,0, string_size(ProcessName)-string_size(Process))
+| order by StartDir desc, Process asc
+| project Process, StartDir
+
+SecurityEvent
+| where ProcessName != "" and Process != ""
+| extend StartDir =  substring(ProcessName,0, string_size(ProcessName)-string_size(Process))
+| order by StartDir desc, Process asc
+| project-away ProcessName
+
+
+SecurityEvent
+| where TimeGenerated > ago(1h) and EventID == "4688"
+| summarize count() by Process, Computer
+
+SecurityEvent
+| where TimeGenerated > ago(1h) and EventID == 4624
+| summarize cnt=count() by AccountType, Computer
+
+
+SecurityEvent
+| where TimeGenerated > ago(1h)
+| summarize dcount(IpAddress)
+
+
+let timeframe = 15d;
+let threshold = 1;
+SigninLogs
+| where TimeGenerated >= ago(timeframe)
+| where ResultDescription has "Invalid password"
+| summarize applicationCount = dcount(AppDisplayName) by UserPrincipalName, IPAddress
+| where applicationCount >= threshold
+
+SecurityEvent 
+| where Computer == "SQL10.na.contosohotels.com"
+| summarize arg_max(TimeGenerated,*) by Computer
+
+SecurityEvent 
+| where Computer == "SQL10.na.contosohotels.com"
+| summarize arg_min(TimeGenerated,*) by Computer
+
+SecurityEvent
+| summarize arg_max(TimeGenerated, *) by Account
+| where EventID == "4624"
+
+SecurityEvent
+| where EventID == "4624"
+| summarize arg_max(TimeGenerated, *) by Account
+
+SecurityEvent
+| where TimeGenerated > ago(1h)
+| where EventID == "4624"
+| summarize make_list(Account) by Computer
+
+
+SecurityEvent
+| where TimeGenerated > ago(1h)
+| where EventID == "4624"
+| summarize make_set(Account) by Computer
+
+SecurityEvent 
+| where TimeGenerated > ago(1h)
+| summarize count() by Account
+| render barchart
+
+SecurityEvent 
+| where TimeGenerated > ago(1h)
+| summarize count() by bin(TimeGenerated, 1m) 
+| render timechart
+
+SecurityEvent 
+| union SigninLogs  
+
+SecurityEvent 
+| union SigninLogs  
+| summarize count() 
+
+
+SecurityEvent 
+| union (SigninLogs | summarize count()| project count_)
+
+union Security* 
+| summarize count() by Type
+
+SecurityEvent 
+| where EventID == "4624" 
+| summarize LogOnCount=count() by EventID, Account 
+| project LogOnCount, Account 
+| join kind = inner (
+SecurityEvent 
+| where EventID == "4634" 
+| summarize LogOffCount=count() by EventID, Account 
+| project LogOffCount, Account 
+) on Account
+
+print extract("x=([0-9.]+)", 1, "hello x=45.6|wo") == "45.6"
+
+
+SecurityEvent
+| where EventID == 4672 and AccountType == 'User'
+| extend Account_Name = extract(@"^(.*\\)?([^@]*)(@.*)?$", 2, tolower(Account))
+| summarize LoginCount = count() by Account_Name
+| where Account_Name != ""
+| where LoginCount < 10
+
+let Traces = datatable(EventText:string)
+[
+"Event: NotifySliceRelease (resourceName=PipelineScheduler, totalSlices=27, sliceNumber=23, lockTime=02/17/2016 08:40:01, releaseTime=02/17/2016 08:40:01, previousLockTime=02/17/2016 08:39:01)",
+"Event: NotifySliceRelease (resourceName=PipelineScheduler, totalSlices=27, sliceNumber=15, lockTime=02/17/2016 08:40:00, releaseTime=02/17/2016 08:40:00, previousLockTime=02/17/2016 08:39:00)",
+"Event: NotifySliceRelease (resourceName=PipelineScheduler, totalSlices=27, sliceNumber=20, lockTime=02/17/2016 08:40:01, releaseTime=02/17/2016 08:40:01, previousLockTime=02/17/2016 08:39:01)",
+"Event: NotifySliceRelease (resourceName=PipelineScheduler, totalSlices=27, sliceNumber=22, lockTime=02/17/2016 08:41:01, releaseTime=02/17/2016 08:41:00, previousLockTime=02/17/2016 08:40:01)",
+"Event: NotifySliceRelease (resourceName=PipelineScheduler, totalSlices=27, sliceNumber=16, lockTime=02/17/2016 08:41:00, releaseTime=02/17/2016 08:41:00, previousLockTime=02/17/2016 08:40:00)"
+];
+Traces  
+| parse EventText with * "resourceName=" resourceName ", totalSlices=" totalSlices:long * "sliceNumber=" sliceNumber:long * "lockTime=" lockTime ", releaseTime=" releaseTime:date "," * "previousLockTime=" previousLockTime:date ")" *  
+| project resourceName, totalSlices, sliceNumber, lockTime, releaseTime, previousLockTime
+
+SigninLogs 
+| extend OS = DeviceDetail.operatingSystem
+
+SigninLogs 
+| where TimeGenerated >= ago(1d)
+| extend OS = DeviceDetail.operatingSystem, Browser = DeviceDetail.browser
+| extend ConditionalAccessPol0Name = tostring(ConditionalAccessPolicies[0].displayName), ConditionalAccessPol0Result = tostring(ConditionalAccessPolicies[0].result)
+| extend ConditionalAccessPol1Name = tostring(ConditionalAccessPolicies[1].displayName), ConditionalAccessPol1Result = tostring(ConditionalAccessPolicies[1].result)
+| extend ConditionalAccessPol2Name = tostring(ConditionalAccessPolicies[2].displayName), ConditionalAccessPol2Result = tostring(ConditionalAccessPolicies[2].result)
+| extend StatusCode = tostring(Status.errorCode), StatusDetails = tostring(Status.additionalDetails)
+| extend State = tostring(LocationDetails.state), City = tostring(LocationDetails.city)
+| extend Date = startofday(TimeGenerated), Hour = datetime_part("Hour", TimeGenerated)
+| summarize count() by Date, Identity, UserDisplayName, UserPrincipalName, IPAddress, ResultType, ResultDescription, StatusCode, StatusDetails, ConditionalAccessPol0Name, ConditionalAccessPol0Result, ConditionalAccessPol1Name, ConditionalAccessPol1Result, ConditionalAccessPol2Name, ConditionalAccessPol2Result, Location, State, City
+| sort by Date
+
+SigninLogs
+| extend Location =  todynamic(LocationDetails)
+| extend City =  Location.city
+| extend City2 = Location["city"]
+| project Location, City, City2
+
+SigninLogs
+| mv-expand Location = todynamic(LocationDetails)
+
+SigninLogs
+| mv-apply Location = todynamic(LocationDetails) on 
+( where Location.countryOrRegion == "US")
